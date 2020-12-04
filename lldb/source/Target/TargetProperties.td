@@ -280,6 +280,10 @@ let Definition = "process" in {
     DefaultEnumValue<"eFollowParent">,
     EnumValues<"OptionEnumValues(g_follow_fork_mode_values)">,
     Desc<"Debugger's behavior upon fork or vfork.">;
+  def EnableInstrumentationRuntimes: Property<"enable-instrumentation-runtimes", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"If true, lldb will provide access to the report information on errors caught by the instrumentation (e.g.: ASan).">;
 }
 
 let Definition = "platform" in {

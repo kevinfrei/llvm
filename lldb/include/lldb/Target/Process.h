@@ -111,6 +111,8 @@ public:
   void SetOSPluginReportsAllThreads(bool does_report);
   bool GetSteppingRunsAllThreads() const;
   FollowForkMode GetFollowForkMode() const;
+  bool GetEnableInstrumentationRuntimes() const;
+  void SetEnableInstrumentationRuntimes(bool enable);
 
 protected:
   Process *m_process; // Can be nullptr for global ProcessProperties
