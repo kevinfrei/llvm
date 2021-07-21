@@ -192,7 +192,8 @@ void DynamicLoaderDumpWithModuleList::DidAttach() {
     ModuleSP module_sp = DynamicLoader::LoadModuleAtAddress(
         file, link_map_addr, base_addr, base_addr_is_offset);
     if (module_sp.get()) {
-      LLDB_LOG(log, "LoadAllCurrentModules loading module: {0}", name.c_str());
+      LLDB_LOGF(log, "LoadAllCurrentModules loading module at 0x%lX: %s",
+                base_addr, name.c_str());
       module_list.Append(module_sp);
     } else {
       LLDB_LOGF(

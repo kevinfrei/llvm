@@ -302,29 +302,108 @@ lldb_private::DynamicLoader *ProcessElfCore::GetDynamicLoader() {
 
 llvm::Expected<lldb_private::LoadedModuleInfoList>
 ProcessElfCore::GetLoadedModuleList() {
-  if (m_module_info_list.m_list.empty()) {
-    std::unordered_map<std::string, std::pair<lldb::addr_t, lldb::addr_t>>
+  if (m_module_info_list.m_list.empty() && !m_nt_file_entries.empty()) {
+
+    // Map from module_path => <range_start, range_end, entry_count>
+    // Since lldb does not support duplicate modules 'entry_count' field is
+    // required to heuristically rate amoung duplicate ranges.
+    std::unordered_map<std::string,
+                       std::tuple<lldb::addr_t, lldb::addr_t, uint8_t>>
         module_range_map;
+    // Helper function to add a new module range.
+    // It takes care of duplication module ranges.
+    auto add_module_range =
+        [&module_range_map](const std::string &module_path, lldb::addr_t start,
+                            lldb::addr_t end, uint32_t entry_count) {
+          // To add a range, we check any duplication ranges and only
+          // store a "better" one. See below for the definition of "better".
+          auto module_iter = module_range_map.find(module_path);
+          if (module_iter == module_range_map.end())
+            // Unique range, simply add it.
+            module_range_map[module_path] = {start, end, entry_count};
+          else {
+            // Found a duplication let's check which is better.
+            //
+            // A range is considered better if:
+            //   1. if the range has more entries, or
+            //   2. the same number of range entries but larger in range size
+
+            auto &existing_module_range = module_iter->second;
+            auto &existing_range_start = std::get<0>(existing_module_range);
+            auto &existing_range_end = std::get<1>(existing_module_range);
+            auto &existing_entry_count = std::get<2>(existing_module_range);
+
+            assert(end > start);
+            assert(existing_range_end > existing_range_start);
+            if (entry_count > existing_entry_count ||
+                (entry_count == existing_entry_count &&
+                 end - start > existing_range_end - existing_range_start)) {
+              existing_range_start = start;
+              existing_range_end = end;
+              existing_entry_count = entry_count;
+            }
+          }
+        };
+
+    // Range adding algorithm works by checking continuous file entries and
+    // merge them into large range. To do that each for loop merges curent file
+    // entry with previous one if they have the same file path; otherwise we
+    // know previous range is done merging and simply add it. The last range is
+    // always added after the for loop.
+    std::string last_entry_path;
+    lldb::addr_t last_module_start = LLDB_INVALID_ADDRESS, last_module_end = 0;
+    uint32_t entry_count = 1;
     for (const NT_FILE_Entry &file_entry : m_nt_file_entries) {
-      std::string module_path = file_entry.path.GetCString();
-      auto module_iter = module_range_map.find(module_path);
-      if (module_iter == module_range_map.end() ||
-          module_iter->second.first > file_entry.start)
-        module_range_map[module_path] =
-            std::make_pair(file_entry.start, file_entry.end - file_entry.start);
-      else {
-        // Expand module's range to include later sections.
-        auto &module_range = module_range_map[module_path];
-        assert(file_entry.end >= module_range.first);
-        module_range.second = file_entry.end - module_range.first;
+      if (file_entry.start <= file_entry.file_ofs) {
+        m_core_module_sp->ReportWarning(
+            "Found invalid NT_FILE entry with start(0x%lx) <= file_ofs(0x%lx)",
+            file_entry.start, file_entry.file_ofs);
+        continue;
       }
+      if (file_entry.end <= file_entry.start) {
+        m_core_module_sp->ReportWarning(
+            "Found invalid NT_FILE entry with end(0x%lx) <= start(0x%lx)",
+            file_entry.end, file_entry.start);
+        continue;
+      }
+
+      // Merge continuous entries or add last merged range.
+      auto new_module_start = file_entry.start - file_entry.file_ofs;
+      if (file_entry.path == last_entry_path) {
+        // continuous entries, merge into a larger range.
+        last_module_start = std::min(last_module_start, new_module_start);
+        last_module_end = std::max(last_module_end, file_entry.end);
+        ++entry_count;
+      } else if (last_module_start == LLDB_INVALID_ADDRESS ||
+                 last_module_end == 0) {
+        // First entry simply record it.
+        last_module_start = new_module_start;
+        last_module_end = file_entry.end;
+      } else {
+        // Encounter a new range starts, let's add last merged range.
+        add_module_range(last_entry_path, last_module_start, last_module_end,
+                         entry_count);
+
+        last_module_start = new_module_start;
+        last_module_end = file_entry.end;
+        entry_count = 1;
+      }
+      last_entry_path = file_entry.path;
     }
+    // Still have to add the last range.
+    add_module_range(last_entry_path, last_module_start, last_module_end,
+                     entry_count);
 
     for (const auto &module_range_entry : module_range_map) {
       LoadedModuleInfoList::LoadedModuleInfo module;
+
+      lldb::addr_t start = std::get<0>(module_range_entry.second);
+      lldb::addr_t end = std::get<1>(module_range_entry.second);
+
       module.set_name(module_range_entry.first);
-      module.set_base(module_range_entry.second.first);
-      module.set_size(module_range_entry.second.second);
+      module.set_base(start);
+      assert(end >= start);
+      module.set_size(end - start);
       m_module_info_list.add(module);
     }
   }
