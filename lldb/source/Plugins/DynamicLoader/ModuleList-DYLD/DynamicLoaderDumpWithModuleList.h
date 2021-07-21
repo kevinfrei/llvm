@@ -10,6 +10,8 @@
 #ifndef LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MODULELIST_DYLD_DYNAMICLOADERDUMPWITHMODULELIST_H
 #define LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MODULELIST_DYLD_DYNAMICLOADERDUMPWITHMODULELIST_H
 
+#include "../POSIX-DYLD/DYLDRendezvous.h"
+#include "Plugins/Process/Utility/AuxVector.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Target/DynamicLoader.h"
 
@@ -70,6 +72,37 @@ private:
       delete;
   const DynamicLoaderDumpWithModuleList &
   operator=(const DynamicLoaderDumpWithModuleList &) = delete;
+
+  typedef std::function<void(const std::string &, lldb::addr_t, lldb::addr_t)>
+      LoadModuleCallback;
+  void LoadAllModules(LoadModuleCallback callback);
+
+  std::optional<const LoadedModuleInfoList::LoadedModuleInfo>
+  GetModuleInfo(lldb::addr_t module_base_addr);
+
+  void DetectModuleListMismatch();
+
+  /// Evaluate if Aux vectors contain vDSO and LD information
+  /// in case they do, read and assign the address to m_vdso_base
+  /// and m_interpreter_base.
+  void EvalSpecialModulesStatus();
+
+  void LoadVDSO();
+
+  /// Runtime linker rendezvous structure.
+  DYLDRendezvous m_rendezvous;
+
+  /// Auxiliary vector of the inferior process.
+  std::unique_ptr<AuxVector> m_auxv;
+
+  /// Contains AT_SYSINFO_EHDR, which means a vDSO has been
+  /// mapped to the address space
+  lldb::addr_t m_vdso_base;
+
+  /// Cache of module base addr => LoadedModuleInfo map.
+  /// It can be used to cross check with posix r_debug link map.
+  std::unordered_map<lldb::addr_t, const LoadedModuleInfoList::LoadedModuleInfo>
+      m_module_addr_to_info_map;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MODULELIST_DYLD_DYNAMICLOADERDUMPWITHMODULELIST_H

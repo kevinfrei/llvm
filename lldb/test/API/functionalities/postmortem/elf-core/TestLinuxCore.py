@@ -856,9 +856,12 @@ class LinuxCoreTestCase(TestBase):
         process = target.LoadCore("linux-x86_64.core")
         self.assertTrue(process, PROCESS_IS_VALID)
 
-        self.assertEqual(process.GetTarget().GetNumModules(), 1)
-        exe_module = process.GetTarget().GetModuleAtIndex(0)
-        # Module load address is got from coredump NT_FILE.
+        # Core should have 2 modules: vdso and executable.
+        self.assertEqual(process.GetTarget().GetNumModules(), 2)
+        # Module load address magic value (0x400000) is manually parsed from
+        # linux-x86_64.core's NT_FILE note via readelf tool.
+        self.assertTrue(process.GetSelectedThread().IsValid())
+        exe_module = process.GetSelectedThread().GetFrameAtIndex(0).GetModule()
         self.assertEqual(
             exe_module.GetObjectFileHeaderAddress().GetLoadAddress(target), 0x400000
         )

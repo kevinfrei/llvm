@@ -5,6 +5,7 @@ add_lldb_library(lldbPluginDynamicLoaderDumpWithModuleList PLUGIN
     lldbCore
     lldbHost
     lldbTarget
+    lldbPluginDynamicLoaderPosixDYLD
     lldbPluginProcessElfCore
   LINK_COMPONENTS
     Support

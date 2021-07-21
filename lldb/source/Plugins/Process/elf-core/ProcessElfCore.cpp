@@ -509,7 +509,11 @@ void ProcessElfCore::Initialize() {
 }
 
 lldb::addr_t ProcessElfCore::GetImageInfoAddress() {
-  ObjectFile *obj_file = GetTarget().GetExecutableModule()->GetObjectFile();
+  lldb::ModuleSP executable = GetTarget().GetExecutableModule();
+  if (!executable)
+    return LLDB_INVALID_ADDRESS;
+
+  ObjectFile *obj_file = executable->GetObjectFile();
   Address addr = obj_file->GetImageInfoAddress(&GetTarget());
 
   if (addr.IsValid())
