@@ -125,6 +125,7 @@ class DebugCommunication(object):
         self.initialize_body = None
         self.thread_stop_reasons = {}
         self.breakpoint_events = []
+        self.thread_events_body = []
         self.progress_events = []
         self.reverse_requests = []
         self.sequence = 1
@@ -236,14 +237,18 @@ class DebugCommunication(object):
                 self._process_stopped()
                 tid = body["threadId"]
                 self.thread_stop_reasons[tid] = body
-            elif event == 'initialized':
+            elif event == "initialized":
                 self.initialized_event = packet
-            elif event == 'breakpoint':
+            elif event == "breakpoint":
                 # Breakpoint events come in when a breakpoint has locations
                 # added or removed. Keep track of them so we can look for them
                 # in tests.
                 self.breakpoint_events.append(packet)
                 # no need to add 'breakpoint' event packets to our packets list
+                return keepGoing
+            elif event == "thread":
+                self.thread_events_body.append(body)
+                # no need to add 'thread' event packets to our packets list
                 return keepGoing
             elif event.startswith("progress"):
                 # Progress events come in as 'progressStart', 'progressUpdate',
@@ -420,6 +425,12 @@ class DebugCommunication(object):
         if self.threads is None:
             self.request_threads()
         return self.threads
+
+    def get_thread_events(self, reason=None):
+        if reason == None:
+            return self.thread_events_body
+        else:
+            return [body for body in self.thread_events_body if body["reason"] == reason]
 
     def get_thread_id(self, threadIndex=0):
         """Utility function to get the first thread ID in the thread list.
@@ -721,7 +732,7 @@ class DebugCommunication(object):
         }
         return self.send_recv(command_dict)
 
-    def request_initialize(self, sourceInitFile):
+    def request_initialize(self, sourceInitFile, singleStoppedEvent=False):
         command_dict = {
             "command": "initialize",
             "type": "request",
@@ -737,6 +748,7 @@ class DebugCommunication(object):
                 "supportsVariableType": True,
                 "supportsStartDebuggingRequest": True,
                 "sourceInitFile": sourceInitFile,
+                "singleStoppedEvent": singleStoppedEvent,
             },
         }
         response = self.send_recv(command_dict)
