@@ -15,6 +15,7 @@ add_lldb_library(lldbPluginProcessElfCore PLUGIN
   LINK_LIBS
     lldbCore
     lldbTarget
+    lldbPluginDynamicLoaderDumpWithModuleList
     lldbPluginDynamicLoaderPosixDYLD
     lldbPluginObjectFileELF
     lldbPluginProcessUtility

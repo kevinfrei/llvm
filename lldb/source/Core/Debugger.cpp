@@ -276,6 +276,12 @@ bool Debugger::GetAutoConfirm() const {
       idx, g_debugger_properties[idx].default_uint_value != 0);
 }
 
+bool Debugger::GetUseModuleListDyld() const {
+  const uint32_t idx = ePropertyUseModuleListDyld;
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_debugger_properties[idx].default_uint_value != 0);
+}
+
 const FormatEntity::Entry *Debugger::GetDisassemblyFormat() const {
   constexpr uint32_t idx = ePropertyDisassemblyFormat;
   return GetPropertyAtIndexAs<const FormatEntity::Entry *>(idx);

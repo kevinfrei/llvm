@@ -225,4 +225,8 @@ let Definition = "debugger" in {
     DefaultEnumValue<"eDWIMPrintVerbosityNone">,
     EnumValues<"OptionEnumValues(g_dwim_print_verbosities)">,
     Desc<"The verbosity level used by dwim-print.">;
+  def UseModuleListDyld: Property<"use-module-list-dyld", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"Use module list dynamic loader plugin for coredump debugging.">;
 }

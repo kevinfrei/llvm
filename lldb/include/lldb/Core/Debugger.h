@@ -256,6 +256,8 @@ public:
 
   bool GetAutoConfirm() const;
 
+  bool GetUseModuleListDyld() const;
+
   const FormatEntity::Entry *GetDisassemblyFormat() const;
 
   const FormatEntity::Entry *GetFrameFormat() const;
