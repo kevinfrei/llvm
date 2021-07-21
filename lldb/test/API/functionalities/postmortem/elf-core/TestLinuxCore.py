@@ -838,7 +838,8 @@ class LinuxCoreTestCase(TestBase):
         Test SBProcess::GetCoreFile() API can successfully get the core file.
         """
         core_file_name = "linux-x86_64.core"
-        target = self.dbg.CreateTarget("linux-x86_64.out")
+        self.runCmd("settings set use-module-list-dyld true")
+        target = self.dbg.CreateTarget(None)
         process = target.LoadCore(core_file_name)
         self.assertTrue(process, PROCESS_IS_VALID)
         self.assertEqual(process.GetCoreFile().GetFilename(), core_file_name)
