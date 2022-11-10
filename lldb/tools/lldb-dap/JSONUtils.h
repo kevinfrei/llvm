@@ -194,7 +194,8 @@ void FillResponse(const llvm::json::Object &request,
 void AppendBreakpoint(
     BreakpointBase *bp, llvm::json::Array &breakpoints,
     std::optional<llvm::StringRef> request_path = std::nullopt,
-    std::optional<uint32_t> request_line = std::nullopt);
+    std::optional<uint32_t> request_line = std::nullopt,
+    lldb::SBBreakpoint *sb_bp = nullptr);
 
 /// Converts breakpoint location to a debug adaptor protocol "Breakpoint".
 ///
@@ -227,7 +228,8 @@ llvm::json::Value
 CreateBreakpoint(BreakpointBase *bp,
                  std::optional<llvm::StringRef> request_path = std::nullopt,
                  std::optional<uint32_t> request_line = std::nullopt,
-                 std::optional<uint32_t> request_column = std::nullopt);
+                 std::optional<uint32_t> request_column = std::nullopt,
+                 lldb::SBBreakpoint *sb_bp = nullptr);
 
 /// Converts a LLDB module to a VS Code DAP module for use in "modules" events.
 ///

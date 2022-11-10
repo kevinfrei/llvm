@@ -2646,7 +2646,7 @@ void request_setBreakpoints(const llvm::json::Object &request) {
           if (existing_bp != existing_source_bps->second.end()) {
             existing_bp->second.UpdateBreakpoint(src_bp);
             AppendBreakpoint(&existing_bp->second, response_breakpoints, path,
-                             src_bp.line);
+                             src_bp.line, &existing_bp->second.bp);
             continue;
           }
         }
@@ -2654,7 +2654,8 @@ void request_setBreakpoints(const llvm::json::Object &request) {
         g_dap.source_breakpoints[path][src_bp.line] = src_bp;
         SourceBreakpoint &new_bp = g_dap.source_breakpoints[path][src_bp.line];
         new_bp.SetBreakpoint(path.data());
-        AppendBreakpoint(&new_bp, response_breakpoints, path, new_bp.line);
+        AppendBreakpoint(&new_bp, response_breakpoints, path, new_bp.line,
+                         &new_bp.bp);
       }
     }
   }

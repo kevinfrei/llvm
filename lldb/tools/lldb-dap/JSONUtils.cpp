@@ -316,6 +316,32 @@ llvm::json::Value CreateScope(const llvm::StringRef name,
   return llvm::json::Value(std::move(object));
 }
 
+void CheckFilenameOnlyCandidates(llvm::json::Object &bp_json,
+                                 llvm::StringRef source_path, uint32_t line) {
+  llvm::StringRef source_filename = llvm::sys::path::filename(source_path);
+  lldb::SBBreakpoint filename_bp = g_dap.target.BreakpointCreateByLocation(
+      source_filename.str().c_str(), line);
+
+  llvm::json::Array candidates;
+  char candidate_path[PATH_MAX];
+  for (size_t i = 0; i < filename_bp.GetNumLocations(); ++i) {
+    lldb::SBBreakpointLocation bp_loc = filename_bp.GetLocationAtIndex(i);
+    if (!bp_loc.IsResolved())
+      continue;
+    uint32_t length = bp_loc.GetAddress().GetLineEntry().GetFileSpec().GetPath(
+        candidate_path, sizeof(candidate_path));
+    if (length == 0)
+      continue;
+    candidates.emplace_back(std::string(candidate_path));
+  }
+  g_dap.target.BreakpointDelete(filename_bp.GetID());
+
+  llvm::json::Object object;
+  object.try_emplace("count", (uint64_t)candidates.size());
+  object.try_emplace("candidates", std::move(candidates));
+  bp_json.try_emplace("filenameOnlyData", std::move(object));
+}
+
 // "Breakpoint": {
 //   "type": "object",
 //   "description": "Information about a Breakpoint created in setBreakpoints
@@ -367,11 +393,17 @@ llvm::json::Value CreateScope(const llvm::StringRef name,
 llvm::json::Value CreateBreakpoint(BreakpointBase *bp,
                                    std::optional<llvm::StringRef> request_path,
                                    std::optional<uint32_t> request_line,
-                                   std::optional<uint32_t> request_column) {
+                                   std::optional<uint32_t> request_column,
+                                   lldb::SBBreakpoint *sb_bp) {
   llvm::json::Object object;
   if (request_path)
     object.try_emplace("source", CreateSource(*request_path));
   bp->CreateJsonObject(object);
+
+  if (sb_bp != nullptr && sb_bp->GetNumLocations() == 0 &&
+      request_path.has_value() && request_line.has_value())
+    CheckFilenameOnlyCandidates(object, *request_path, *request_line);
+
   // We try to add request_line as a fallback
   if (request_line)
     object.try_emplace("line", *request_line);
@@ -468,8 +500,10 @@ llvm::json::Value CreateModule(lldb::SBModule &module) {
 
 void AppendBreakpoint(BreakpointBase *bp, llvm::json::Array &breakpoints,
                       std::optional<llvm::StringRef> request_path,
-                      std::optional<uint32_t> request_line) {
-  breakpoints.emplace_back(CreateBreakpoint(bp, request_path, request_line));
+                      std::optional<uint32_t> request_line,
+                      lldb::SBBreakpoint *sb_bp) {
+  breakpoints.emplace_back(
+      CreateBreakpoint(bp, request_path, request_line, std::nullopt, sb_bp));
 }
 
 // "Event": {
