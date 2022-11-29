@@ -898,7 +898,7 @@ void request_attach(const llvm::json::Object &request) {
   g_dap.SendJSON(llvm::json::Value(std::move(response)));
   if (error.Success()) {
     SendProcessEvent(Attach);
-    g_dap.SendJSON(CreateEventObject("initialized"));
+    g_dap.SendJSON(CreateInitializedEventObject());
   }
 }
 
@@ -2186,7 +2186,7 @@ void request_launch(const llvm::json::Object &request) {
     else
       SendProcessEvent(Launch);
   }
-  g_dap.SendJSON(CreateEventObject("initialized"));
+  g_dap.SendJSON(CreateInitializedEventObject());
 }
 
 // Check if the step-granularity is `instruction`
