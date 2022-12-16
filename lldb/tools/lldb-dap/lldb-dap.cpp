@@ -1920,6 +1920,8 @@ void request_initialize(const llvm::json::Object &request) {
   body.try_emplace("supportsDataBreakpoints", true);
   // The debug adapter support for instruction breakpoint.
   body.try_emplace("supportsInstructionBreakpoints", true);
+  // Putting version string. Note: this is not part of DAP spec.
+  body.try_emplace("version", g_dap.debugger.GetVersionString());
 
   // Put in non-DAP specification lldb specific information.
   llvm::json::Object lldb_json;
