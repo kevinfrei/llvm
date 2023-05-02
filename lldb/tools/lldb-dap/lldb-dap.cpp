@@ -1920,6 +1920,8 @@ void request_initialize(const llvm::json::Object &request) {
   body.try_emplace("supportsDataBreakpoints", true);
   // The debug adapter support for instruction breakpoint.
   body.try_emplace("supportsInstructionBreakpoints", true);
+  // The debug adapter supports 'singleThread' in execution control requests.
+  body.try_emplace("supportsSingleThreadExecutionRequests", true);
   // Putting version string. Note: this is not part of DAP spec.
   body.try_emplace("version", g_dap.debugger.GetVersionString());
 
@@ -2246,6 +2248,9 @@ void request_next(const llvm::json::Object &request) {
   llvm::json::Object response;
   FillResponse(request, response);
   auto arguments = request.getObject("arguments");
+  const bool single_thread = GetBoolean(arguments, "singleThread", false);
+  lldb::RunMode run_mode =
+      single_thread ? lldb::eOnlyThisThread : lldb::eOnlyDuringStepping;
   lldb::SBThread thread = g_dap.GetLLDBThread(*arguments);
   if (thread.IsValid()) {
     // Remember the thread ID that caused the resume so we can set the
@@ -2254,7 +2259,7 @@ void request_next(const llvm::json::Object &request) {
     if (hasInstructionGranularity(*arguments)) {
       thread.StepInstruction(/*step_over=*/true);
     } else {
-      thread.StepOver();
+      thread.StepOver(run_mode);
     }
   } else {
     response["success"] = llvm::json::Value(false);
