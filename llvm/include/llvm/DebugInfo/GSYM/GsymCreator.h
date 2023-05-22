@@ -147,7 +147,7 @@ class GsymCreator {
   bool IsSegment = false;
   bool Finalized = false;
   bool Quiet;
-
+  bool PreserveLongName;
 
   /// Get the first function start address.
   ///
@@ -290,9 +290,23 @@ class GsymCreator {
   void setIsSegment() {
     IsSegment = true;
   }
+  /// Check if a short name is a substring of another mangled name.
+  ///
+  /// DWARF will have truncated name, this happens especially with templates.
+  /// It can truncate the namespace and the parameters
+  /// eg.
+  /// DWARF:
+  /// make_ftype
+  /// Symbol Table (demangled):
+  /// (anonymous namespace)::make_ftype(char*, int)
+  ///
+  /// \param longName The long mangled name.
+  /// \param shortName The short name to check.
+  /// \returns true if short name is a substring of another mangled name.
+  bool isSubStrOfMangledName(StringRef longName, StringRef shortName);
 
 public:
-  GsymCreator(bool Quiet = false);
+  GsymCreator(bool Quiet = false, bool PreserveLongName = false);
 
   /// Save a GSYM file to a stand alone file.
   ///
@@ -445,7 +459,6 @@ public:
 
   /// Whether the transformation should be quiet, i.e. not output warnings.
   bool isQuiet() const { return Quiet; }
-
 
   /// Create a segmented GSYM creator starting with function info index
   /// \a FuncIdx.
