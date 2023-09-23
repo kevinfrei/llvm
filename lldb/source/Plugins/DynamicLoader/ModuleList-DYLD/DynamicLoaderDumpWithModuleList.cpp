@@ -16,6 +16,7 @@
 #include "lldb/Utility/Log.h"
 
 #include "Plugins/ObjectFile/Placeholder/ObjectFilePlaceholder.h"
+#include <regex>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -155,12 +156,26 @@ void DynamicLoaderDumpWithModuleList::LoadAllModules(
       addr_t base_addr, module_size;
       std::string name;
       if (!mod_info.get_base(base_addr) || !mod_info.get_name(name) ||
-          !mod_info.get_size(module_size))
+          !mod_info.get_size(module_size) || !ShouldLoadModule(name))
         continue;
 
-      callback(name, base_addr, module_size);
+      callback(SanitizeName(name), base_addr, module_size);
     }
   }
+}
+
+bool DynamicLoaderDumpWithModuleList::ShouldLoadModule(
+    const std::string &module_name) {
+  // Use a regular expression to match /dev/* path
+  static const std::regex pattern("^/dev/.*$");
+  return !std::regex_match(module_name, pattern);
+}
+
+std::string
+DynamicLoaderDumpWithModuleList::SanitizeName(const std::string &input) {
+  // Use a regular expression to match and remove the parenthesized substring
+  static const std::regex pattern("\\s*\\(\\S+\\)\\s*$");
+  return std::regex_replace(input, pattern, "");
 }
 
 void DynamicLoaderDumpWithModuleList::DidAttach() {

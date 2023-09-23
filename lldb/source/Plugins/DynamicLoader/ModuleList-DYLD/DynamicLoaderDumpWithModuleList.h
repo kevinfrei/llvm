@@ -77,6 +77,10 @@ private:
       LoadModuleCallback;
   void LoadAllModules(LoadModuleCallback callback);
 
+  bool ShouldLoadModule(const std::string &module_name);
+
+  std::string SanitizeName(const std::string &input);
+
   std::optional<const LoadedModuleInfoList::LoadedModuleInfo>
   GetModuleInfo(lldb::addr_t module_base_addr);
 
