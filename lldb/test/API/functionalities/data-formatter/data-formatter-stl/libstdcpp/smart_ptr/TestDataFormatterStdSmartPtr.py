@@ -12,6 +12,7 @@ from lldbsuite.test import lldbutil
 class StdSmartPtrDataFormatterTestCase(TestBase):
     @add_test_categories(["libstdcxx"])
     @expectedFailureAll(bugnumber="llvm.org/pr50861", compiler="gcc")
+    @skipIf("T164523815")
     def test_with_run_command(self):
         self.build()
         self.runCmd("file " + self.getBuildArtifact("a.out"), CURRENT_EXECUTABLE_SET)

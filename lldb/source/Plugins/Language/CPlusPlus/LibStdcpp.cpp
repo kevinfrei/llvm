@@ -455,17 +455,20 @@ bool lldb_private::formatters::LibStdcppSmartPointerSummaryProvider(
     return true;
   }
 
-  Status error;
-  ValueObjectSP pointee_sp = ptr_sp->Dereference(error);
-  if (pointee_sp && error.Success()) {
-    if (pointee_sp->DumpPrintableRepresentation(
-            stream, ValueObject::eValueObjectRepresentationStyleSummary,
-            lldb::eFormatInvalid,
-            ValueObject::PrintableRepresentationSpecialCases::eDisable,
-            false)) {
-      return true;
-    }
-  }
+  // TODO: temporary disable the summary provider deference for smart pointers
+  // because it is causing performance issues while completing certain template
+  // heavy types. We will revisit this issue after T164523815 is fixed.
+  // Status error;
+  // ValueObjectSP pointee_sp = ptr_sp->Dereference(error);
+  // if (pointee_sp && error.Success()) {
+  //   if (pointee_sp->DumpPrintableRepresentation(
+  //           stream, ValueObject::eValueObjectRepresentationStyleSummary,
+  //           lldb::eFormatInvalid,
+  //           ValueObject::PrintableRepresentationSpecialCases::eDisable,
+  //           false)) {
+  //     return true;
+  //   }
+  // }
 
   stream.Printf("ptr = 0x%" PRIx64, ptr_sp->GetValueAsUnsigned(0));
   return true;
