@@ -1908,7 +1908,9 @@ void request_initialize(const llvm::json::Object &request) {
   // The debug adapter supports the stepInTargetsRequest.
   body.try_emplace("supportsStepInTargetsRequest", true);
   // The debug adapter supports the completions request.
-  body.try_emplace("supportsCompletionsRequest", true);
+  // TODO: T164800837 disable auto completion in debug console because it is
+  // causing performance issue.
+  body.try_emplace("supportsCompletionsRequest", false);
   // The debug adapter supports the disassembly request.
   body.try_emplace("supportsDisassembleRequest", true);
   // The debug adapter supports stepping granularities (argument `granularity`)
