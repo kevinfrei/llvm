@@ -59,10 +59,7 @@ public:
 
   lldb::addr_t GetThreadLocalData(const lldb::ModuleSP module,
                                   const lldb::ThreadSP thread,
-                                  lldb::addr_t tls_file_addr) override {
-    // TODO: how to implement this?
-    return LLDB_INVALID_ADDRESS;
-  }
+                                  lldb::addr_t tls_file_addr) override;
 
   // PluginInterface protocol
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
@@ -73,7 +70,8 @@ private:
   const DynamicLoaderDumpWithModuleList &
   operator=(const DynamicLoaderDumpWithModuleList &) = delete;
 
-  typedef std::function<void(const std::string &, lldb::addr_t, lldb::addr_t)>
+  typedef std::function<void(const std::string &, lldb::addr_t, lldb::addr_t,
+                             lldb::addr_t)>
       LoadModuleCallback;
   void LoadAllModules(LoadModuleCallback callback);
 
@@ -107,6 +105,12 @@ private:
   /// It can be used to cross check with posix r_debug link map.
   std::unordered_map<lldb::addr_t, const LoadedModuleInfoList::LoadedModuleInfo>
       m_module_addr_to_info_map;
+
+  // TODO: merge with DynamicLoaderPOSIXDYLD::m_loaded_modules
+  // The same as DynamicLoaderPOSIXDYLD::m_loaded_modules to track all loaded
+  // module's link map addresses. It is used by TLS to get DTV data structure.
+  std::map<lldb::ModuleWP, lldb::addr_t, std::owner_less<lldb::ModuleWP>>
+      m_loaded_modules;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_DYNAMICLOADER_MODULELIST_DYLD_DYNAMICLOADERDUMPWITHMODULELIST_H

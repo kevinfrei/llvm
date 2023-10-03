@@ -153,6 +153,8 @@ private:
   // Memory tag ranges found in the core
   VMRangeToFileOffset m_core_tag_ranges;
 
+  std::string m_executable_name;
+
   // NT_FILE entries found from the NOTE segment
   std::vector<NT_FILE_Entry> m_nt_file_entries;
 

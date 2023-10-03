@@ -118,6 +118,12 @@ void DynamicLoaderDumpWithModuleList::LoadAllModules(
     LoadModuleCallback callback) {
 
   if (m_rendezvous.Resolve()) {
+    // The rendezvous class doesn't enumerate the main module, so track that
+    // ourselves here.
+    ModuleSP executable = GetTargetExecutable();
+    if (executable)
+      m_loaded_modules[executable] = m_rendezvous.GetLinkMapAddress();
+
     DYLDRendezvous::iterator I;
     DYLDRendezvous::iterator E;
     for (I = m_rendezvous.begin(), E = m_rendezvous.end(); I != E; ++I) {
@@ -127,7 +133,7 @@ void DynamicLoaderDumpWithModuleList::LoadAllModules(
           GetModuleInfo(I->base_addr);
       if (mod_info_opt.has_value())
         (*mod_info_opt).get_size(module_size);
-      callback(I->file_spec.GetPath(), I->base_addr, module_size);
+      callback(I->file_spec.GetPath(), I->base_addr, module_size, I->link_addr);
     }
 
     DetectModuleListMismatch();
@@ -159,7 +165,7 @@ void DynamicLoaderDumpWithModuleList::LoadAllModules(
           !mod_info.get_size(module_size) || !ShouldLoadModule(name))
         continue;
 
-      callback(SanitizeName(name), base_addr, module_size);
+      callback(SanitizeName(name), base_addr, module_size, /*link_map_addr=*/0);
     }
   }
 }
@@ -196,12 +202,11 @@ void DynamicLoaderDumpWithModuleList::DidAttach() {
 
   ModuleList module_list;
   LoadAllModules([&](const std::string &name, addr_t base_addr,
-                     addr_t module_size) {
+                     addr_t module_size, addr_t link_map_addr) {
     // vdso module has already been loaded.
     if (base_addr == m_vdso_base)
       return;
 
-    addr_t link_map_addr = 0;
     FileSpec file(name, m_process->GetTarget().GetArchitecture().GetTriple());
     const bool base_addr_is_offset = false;
     ModuleSP module_sp = DynamicLoader::LoadModuleAtAddress(
@@ -224,6 +229,7 @@ void DynamicLoaderDumpWithModuleList::DidAttach() {
                            base_addr_is_offset);
       m_process->GetTarget().GetImages().Append(module_sp, /*notify*/ true);
     }
+    m_loaded_modules[module_sp] = link_map_addr;
   });
 
   m_process->GetTarget().ModulesDidLoad(module_list);
@@ -259,4 +265,83 @@ void DynamicLoaderDumpWithModuleList::LoadVDSO() {
 
 lldb_private::Status DynamicLoaderDumpWithModuleList::CanLoadImage() {
   return Status();
+}
+
+// TODO: refactor and merge this implementation with
+// DynamicLoaderPOSIXDYLD::GetThreadLocalData
+lldb::addr_t DynamicLoaderDumpWithModuleList::GetThreadLocalData(
+    const lldb::ModuleSP module_sp, const lldb::ThreadSP thread,
+    lldb::addr_t tls_file_addr) {
+  Log *log = GetLog(LLDBLog::DynamicLoader);
+  auto it = m_loaded_modules.find(module_sp);
+  if (it == m_loaded_modules.end()) {
+    LLDB_LOGF(
+        log, "GetThreadLocalData error: module(%s) not found in loaded modules",
+        module_sp->GetObjectName().AsCString());
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  addr_t link_map = it->second;
+  if (link_map == LLDB_INVALID_ADDRESS || link_map == 0) {
+    LLDB_LOGF(log,
+              "GetThreadLocalData error: invalid link map address=0x%" PRIx64,
+              link_map);
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  const DYLDRendezvous::ThreadInfo &metadata = m_rendezvous.GetThreadInfo();
+  if (!metadata.valid) {
+    LLDB_LOGF(log,
+              "GetThreadLocalData error: fail to read thread info metadata");
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  LLDB_LOGF(log,
+            "GetThreadLocalData info: link_map=0x%" PRIx64
+            ", thread info metadata: "
+            "modid_offset=0x%" PRIx32 ", dtv_offset=0x%" PRIx32
+            ", tls_offset=0x%" PRIx32 ", dtv_slot_size=%" PRIx32 "\n",
+            link_map, metadata.modid_offset, metadata.dtv_offset,
+            metadata.tls_offset, metadata.dtv_slot_size);
+
+  // Get the thread pointer.
+  addr_t tp = thread->GetThreadPointer();
+  if (tp == LLDB_INVALID_ADDRESS) {
+    LLDB_LOGF(log, "GetThreadLocalData error: fail to read thread pointer");
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  // Find the module's modid.
+  int modid_size = 4; // FIXME(spucci): This isn't right for big-endian 64-bit
+  int64_t modid = ReadUnsignedIntWithSizeInBytes(
+      link_map + metadata.modid_offset, modid_size);
+  if (modid == -1) {
+    LLDB_LOGF(log, "GetThreadLocalData error: fail to read modid");
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  // Lookup the DTV structure for this thread.
+  addr_t dtv_ptr = tp + metadata.dtv_offset;
+  addr_t dtv = ReadPointer(dtv_ptr);
+  if (dtv == LLDB_INVALID_ADDRESS) {
+    LLDB_LOGF(log, "GetThreadLocalData error: fail to read dtv");
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  // Find the TLS block for this module.
+  addr_t dtv_slot = dtv + metadata.dtv_slot_size * modid;
+  addr_t tls_block = ReadPointer(dtv_slot + metadata.tls_offset);
+
+  LLDB_LOGF(log,
+            "DynamicLoaderDumpWithModuleList::Performed TLS lookup: "
+            "module=%s, link_map=0x%" PRIx64 ", tp=0x%" PRIx64
+            ", modid=%" PRId64 ", tls_block=0x%" PRIx64 "\n",
+            module_sp->GetObjectName().AsCString(""), link_map, tp,
+            (int64_t)modid, tls_block);
+
+  if (tls_block == LLDB_INVALID_ADDRESS) {
+    LLDB_LOGF(log, "GetThreadLocalData error: fail to read tls_block");
+    return LLDB_INVALID_ADDRESS;
+  } else
+    return tls_block + tls_file_addr;
 }
