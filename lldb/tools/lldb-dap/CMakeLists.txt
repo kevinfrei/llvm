@@ -67,3 +67,5 @@ if(LLDB_BUILD_FRAMEWORK)
       "@loader_path/../../Library/PrivateFrameworks"
   )
 endif()
+
+add_llvm_tool_symlink(lldb-vscode lldb-dap)
