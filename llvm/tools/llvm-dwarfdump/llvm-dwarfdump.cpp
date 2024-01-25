@@ -276,6 +276,10 @@ static cl::opt<bool>
                 cat(DwarfDumpCategory));
 static opt<bool> Verify("verify", desc("Verify the DWARF debug info."),
                         cat(DwarfDumpCategory));
+static opt<bool> OnlyAggregateErrors(
+    "only-aggregate-errors",
+    desc("Only display the aggregate errors when verifying."),
+    cat(DwarfDumpCategory));
 static opt<bool> Quiet("quiet", desc("Use with -verify to not emit to STDOUT."),
                        cat(DwarfDumpCategory));
 static opt<bool> DumpUUID("uuid", desc("Show the UUID for each architecture."),
@@ -326,7 +330,7 @@ static DIDumpOptions getDumpOpts(DWARFContext &C) {
   DumpOpts.RecoverableErrorHandler = C.getRecoverableErrorHandler();
   // In -verify mode, print DIEs without children in error messages.
   if (Verify) {
-    // DumpOpts.Verbose = true;
+    DumpOpts.Verbose = !OnlyAggregateErrors;
     return DumpOpts.noImplicitRecursion();
   }
   return DumpOpts;
