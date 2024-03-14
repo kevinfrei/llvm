@@ -18,6 +18,8 @@
 #include "DWARFFormValue.h"
 #include "DWARFUnit.h"
 
+class DWARFUnit;
+
 using namespace lldb_private;
 using namespace lldb_private::dwarf;
 using namespace lldb_private::plugin::dwarf;
@@ -500,8 +502,7 @@ dw_addr_t DWARFFormValue::Address() const {
       &offset, index_size);
 }
 
-std::pair<DWARFUnit *, uint64_t>
-DWARFFormValue::ReferencedUnitAndOffset() const {
+DWARFDIE DWARFFormValue::Reference() const {
   uint64_t value = m_value.value.uval;
   switch (m_form) {
   case DW_FORM_ref1:
@@ -515,9 +516,9 @@ DWARFFormValue::ReferencedUnitAndOffset() const {
     if (!m_unit->ContainsDIEOffset(value)) {
       m_unit->GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(
           "DW_FORM_ref* DIE reference {0:x16} is outside of its CU", value);
-      return {nullptr, 0};
+      return {};
     }
-    return {const_cast<DWARFUnit *>(m_unit), value};
+    return const_cast<DWARFUnit *>(m_unit)->GetDIE(value);
 
   case DW_FORM_ref_addr: {
     DWARFUnit *ref_cu =
@@ -526,27 +527,22 @@ DWARFFormValue::ReferencedUnitAndOffset() const {
     if (!ref_cu) {
       m_unit->GetSymbolFileDWARF().GetObjectFile()->GetModule()->ReportError(
           "DW_FORM_ref_addr DIE reference {0:x16} has no matching CU", value);
-      return {nullptr, 0};
+      return {};
     }
-    return {ref_cu, value};
+    return ref_cu->GetDIE(value);
   }
 
   case DW_FORM_ref_sig8: {
     DWARFTypeUnit *tu =
         m_unit->GetSymbolFileDWARF().DebugInfo().GetTypeUnitForHash(value);
     if (!tu)
-      return {nullptr, 0};
-    return {tu, tu->GetTypeOffset()};
+      return {};
+    return tu->GetDIE(tu->GetTypeOffset());
   }
 
   default:
-    return {nullptr, 0};
+    return {};
   }
-}
-
-DWARFDIE DWARFFormValue::Reference() const {
-  auto [unit, offset] = ReferencedUnitAndOffset();
-  return unit ? unit->GetDIE(offset) : DWARFDIE();
 }
 
 uint64_t DWARFFormValue::Reference(dw_offset_t base_offset) const {

@@ -145,11 +145,6 @@ public:
 
   DWARFDIE GetDIE(dw_offset_t die_offset);
 
-  /// Returns the AT_Name of the DIE at `die_offset`, if it exists, without
-  /// parsing the entire compile unit. An empty is string is returned upon
-  /// error or if the attribute is not present.
-  llvm::StringRef PeekDIEName(dw_offset_t die_offset);
-
   DWARFUnit &GetNonSkeletonUnit();
 
   static uint8_t GetAddressByteSize(const DWARFUnit *cu);
