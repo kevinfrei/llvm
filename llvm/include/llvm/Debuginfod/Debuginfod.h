@@ -85,6 +85,10 @@ std::string getDebuginfodDebuginfoUrlPath(object::BuildIDRef ID);
 /// server URLs.
 Expected<std::string> getCachedOrDownloadDebuginfo(object::BuildIDRef ID);
 
+/// Fetches any debuginfod artifact from the specified cache directory and key.
+Expected<std::string> getCachedArtifact(StringRef UniqueKey,
+                                        StringRef CacheDirectoryPath);
+
 /// Fetches any debuginfod artifact using the default local cache directory and
 /// server URLs.
 Expected<std::string> getCachedOrDownloadArtifact(StringRef UniqueKey,
