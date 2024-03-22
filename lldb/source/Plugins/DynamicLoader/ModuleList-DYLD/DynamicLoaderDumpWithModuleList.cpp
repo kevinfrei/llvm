@@ -173,7 +173,7 @@ void DynamicLoaderDumpWithModuleList::LoadAllModules(
 bool DynamicLoaderDumpWithModuleList::ShouldLoadModule(
     const std::string &module_name) {
   // Use a regular expression to match /dev/* path
-  static const std::regex pattern("^/dev/.*$");
+  static const std::regex pattern("^/dev/(?!shm.*).*$");
   return !std::regex_match(module_name, pattern);
 }
 
