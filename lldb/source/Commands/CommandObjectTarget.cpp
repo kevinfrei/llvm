@@ -42,6 +42,7 @@
 #include "lldb/Symbol/UnwindPlan.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ABI.h"
+#include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/SectionLoadList.h"
@@ -2943,8 +2944,14 @@ protected:
 
     if (flush) {
       ProcessSP process = target.GetProcessSP();
-      if (process)
+      if (process) {
         process->Flush();
+        // DYLD rendezvous might not be resolved, try to load all modules again
+        // as we might have main executable replaced.
+        DynamicLoader *dyld = process->GetDynamicLoader();
+        if (dyld)
+          dyld->DidAttach();
+      }
     }
     return;
   }
