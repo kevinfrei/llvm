@@ -24,6 +24,11 @@ public:
   /// found, this will notify all target which contain the module with the
   /// given UUID.
   static void DownloadSymbolFileAsync(const UUID &uuid);
+  /// Normally, DownloadSymbolFileAsync will only try to download a given
+  /// UUID once. If the configuration for locating symbols has been changed
+  /// by the user, this function will reset that counter so that we will
+  /// attempt to download again.
+  static void ResetDownloadAttempts();
 };
 
 } // namespace lldb_private
