@@ -1489,6 +1489,11 @@ void FilterAndGetValueForKey(const lldb::SBStructuredData data, const char *key,
 void addStatisticsSummary(llvm::json::Object &event) {
   lldb::SBStatisticsOptions options;
   options.SetSummaryOnly(true);
+  // META BEGIN
+  // Temporary fix until #97004 is upstreamed.
+  // TODO: Revert/delete this block once #97004 is in toolchain/llvm-sand/main
+  options.SetIncludeTargets(true);
+  // META END
   lldb::SBStructuredData statistics =
       g_dap.target.GetStatistics(options);
 
