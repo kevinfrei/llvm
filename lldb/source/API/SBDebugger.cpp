@@ -1343,6 +1343,28 @@ const char *SBDebugger::GetInstanceName() {
   return ConstString(m_opaque_sp->GetInstanceName()).AsCString();
 }
 
+SBError SBDebugger::ClearInternalVariable(const char *var_name,
+                                          const char *debugger_instance_name) {
+  LLDB_INSTRUMENT_VA(var_name, debugger_instance_name);
+
+  SBError sb_error;
+  DebuggerSP debugger_sp(
+      Debugger::FindDebuggerWithInstanceName(debugger_instance_name));
+  Status error;
+  if (debugger_sp) {
+    ExecutionContext exe_ctx(
+        debugger_sp->GetCommandInterpreter().GetExecutionContext());
+    error = debugger_sp->SetPropertyValue(&exe_ctx, eVarSetOperationClear,
+                                          var_name, llvm::StringRef());
+  } else {
+    error.FromErrorStringWithFormat("invalid debugger instance name '%s'",
+                                    debugger_instance_name);
+  }
+  if (error.Fail())
+    sb_error.SetError(std::move(error));
+  return sb_error;
+}
+
 SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
                                         const char *debugger_instance_name) {
   LLDB_INSTRUMENT_VA(var_name, value, debugger_instance_name);

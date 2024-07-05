@@ -33,8 +33,10 @@ DAP g_dap;
 
 DAP::DAP()
     : broadcaster("lldb-dap"), exception_breakpoints(),
+      keep_alive_timeout_ms(0),
       focus_tid(LLDB_INVALID_THREAD_ID), stop_at_entry(false), is_attach(false),
-      single_stopped_event(false), enable_auto_variable_summaries(false),
+      single_stopped_event(false),
+      enable_auto_variable_summaries(false),
       enable_synthetic_child_debugging(false),
       enable_display_extended_backtrace(false),
       restarting_process_id(LLDB_INVALID_PROCESS_ID),
@@ -202,12 +204,12 @@ void DAP::SendJSON(const llvm::json::Value &json) {
 }
 
 // Read a JSON packet from the "in" stream.
-std::string DAP::ReadJSON() {
+std::string DAP::ReadJSON(uint32_t timeoutInMS) {
   std::string length_str;
   std::string json_str;
   int length;
 
-  if (!input.read_expected(log.get(), "Content-Length: "))
+  if (!input.read_expected(log.get(), "Content-Length: ", timeoutInMS))
     return json_str;
 
   if (!input.read_line(log.get(), length_str))
@@ -647,8 +649,9 @@ void DAP::SetTarget(const lldb::SBTarget target) {
   }
 }
 
-PacketStatus DAP::GetNextObject(llvm::json::Object &object) {
-  std::string json = ReadJSON();
+PacketStatus DAP::GetNextObject(llvm::json::Object &object,
+                                uint32_t timeoutInMS) {
+  std::string json = ReadJSON(timeoutInMS);
   if (json.empty())
     return PacketStatus::EndOfFile;
 
@@ -734,11 +737,56 @@ bool DAP::HandleObject(const llvm::json::Object &object) {
   return false;
 }
 
-llvm::Error DAP::Loop() {
-  while (!disconnecting) {
-    llvm::json::Object object;
-    lldb_dap::PacketStatus status = GetNextObject(object);
+// Block and wait all worker threads to finish their execution.
+// This is needed to ensure safe shutdown.
+void DAP::WaitWorkerThreadsToExit() {
+  if (event_thread.joinable()) {
+    broadcaster.BroadcastEventByType(eBroadcastBitStopEventThread);
+    event_thread.join();
+  }
+  if (progress_event_thread.joinable()) {
+    broadcaster.BroadcastEventByType(eBroadcastBitStopProgressThread);
+    progress_event_thread.join();
+  }
+}
 
+bool DAP::KeepAlive() { return keep_alive_timeout_ms > 0; }
+
+void DAP::ResetDebuggerState() {
+  WaitWorkerThreadsToExit();
+  source_breakpoints.clear();
+  function_breakpoints.clear();
+  exception_breakpoints->clear();
+
+  // Destory existing debugger so that we can start from a fresh state.
+  if (debugger.IsValid()) {
+    // Clear any global target settings by previous debug sessions so that
+    // new debug session can start from a freshed state.
+    lldb::SBDebugger::ClearInternalVariable("target",
+                                            debugger.GetInstanceName());
+    lldb::SBDebugger::Destroy(debugger);
+  }
+  // Reset terminated_event_flag so that it can be reused for future sessions.
+  terminated_event_flag.~once_flag();
+  new (&terminated_event_flag) std::once_flag;
+  disconnecting = false;
+}
+
+llvm::Error DAP::Loop() {
+  while (!disconnecting || KeepAlive()) {
+    llvm::json::Object object;
+
+    // If we are disconnecting and keep alive is enabled, we will reset
+    // debugger state for future debug session reuse. If there is no further
+    // certain peroid of time we will timeout and exit.
+    uint32_t timeout = 0;
+    if (disconnecting && KeepAlive()) {
+      ResetDebuggerState();
+      timeout = keep_alive_timeout_ms;
+    }
+    lldb_dap::PacketStatus status = GetNextObject(object, timeout);
+
+    // When keep alive timeout this will return EndOfFile.
     if (status == lldb_dap::PacketStatus::EndOfFile) {
       break;
     }

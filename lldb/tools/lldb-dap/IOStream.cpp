@@ -18,6 +18,7 @@
 
 #include <fstream>
 #include <string>
+#include <sys/select.h>
 #include <vector>
 
 using namespace lldb_dap;
@@ -88,18 +89,51 @@ bool OutputStream::write_full(llvm::StringRef str) {
   return true;
 }
 
+// true means we have data to read, false means we timed out.
+bool waitDataAvailableOrTimeout(int fd, int timeoutInMS) {
+  if (timeoutInMS <= 0)
+    return true;
+
+  fd_set read_fds;
+
+  // Initialize the timeout data
+  struct timeval tv;
+  tv.tv_sec = timeoutInMS / 1000;
+  tv.tv_usec = (timeoutInMS % 1000) * 1000;
+
+  int retval;
+  // Initialize the set
+  FD_ZERO(&read_fds);
+  FD_SET(fd, &read_fds);
+
+  // Wait for the file descriptor to be ready for reading
+  retval = select(fd + 1, &read_fds, NULL, NULL, &tv);
+  if (retval == -1) {
+    perror("select");
+    return false;
+  } else if (retval == 0) {
+    return false;
+  }
+  return true;
+}
+
 bool InputStream::read_full(std::ofstream *log, size_t length,
-                            std::string &text) {
+                            std::string &text, uint32_t timeoutInMS) {
   std::string data;
   data.resize(length);
 
   char *ptr = &data[0];
   while (length != 0) {
     int bytes_read = 0;
-    if (descriptor.m_is_socket)
+    if (descriptor.m_is_socket) {
+      if (!waitDataAvailableOrTimeout(descriptor.m_socket, timeoutInMS))
+        return false;
       bytes_read = ::recv(descriptor.m_socket, ptr, length, 0);
-    else
+    } else {
+      if (!waitDataAvailableOrTimeout(descriptor.m_fd, timeoutInMS))
+        return false;
       bytes_read = ::read(descriptor.m_fd, ptr, length);
+    }
 
     if (bytes_read == 0) {
       if (log)
@@ -145,9 +179,10 @@ bool InputStream::read_line(std::ofstream *log, std::string &line) {
   return true;
 }
 
-bool InputStream::read_expected(std::ofstream *log, llvm::StringRef expected) {
+bool InputStream::read_expected(std::ofstream *log, llvm::StringRef expected,
+                                uint32_t timeoutInMS) {
   std::string result;
-  if (!read_full(log, expected.size(), result))
+  if (!read_full(log, expected.size(), result, timeoutInMS))
     return false;
   if (expected != result) {
     if (log)

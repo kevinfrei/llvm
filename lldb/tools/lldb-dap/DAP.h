@@ -166,6 +166,8 @@ struct DAP {
   InstructionBreakpointMap instruction_breakpoints;
   std::optional<std::vector<ExceptionBreakpoint>> exception_breakpoints;
   llvm::once_flag init_exception_breakpoints_flag;
+  // Zero to not keep alive.
+  uint32_t keep_alive_timeout_ms;
   std::vector<std::string> pre_init_commands;
   std::vector<std::string> init_commands;
   std::vector<std::string> pre_run_commands;
@@ -220,7 +222,7 @@ struct DAP {
   // the "out" stream.
   void SendJSON(const llvm::json::Value &json);
 
-  std::string ReadJSON();
+  std::string ReadJSON(uint32_t timeoutInMS);
 
   void SendOutput(OutputType o, const llvm::StringRef output);
 
@@ -284,8 +286,12 @@ struct DAP {
 
   const std::map<std::string, RequestCallback> &GetRequestHandlers();
 
-  PacketStatus GetNextObject(llvm::json::Object &object);
+  PacketStatus GetNextObject(llvm::json::Object &object, uint32_t timeoutInMS);
   bool HandleObject(const llvm::json::Object &object);
+
+  bool KeepAlive();
+
+  void ResetDebuggerState();
 
   llvm::Error Loop();
 
@@ -345,11 +351,15 @@ struct DAP {
 
   InstructionBreakpoint *GetInstructionBPFromStopReason(lldb::SBThread &thread);
 
+  void WaitWorkerThreadsToExit();
+
 private:
   // Send the JSON in "json_str" to the "out" stream. Correctly send the
   // "Content-Length:" field followed by the length, followed by the raw
   // JSON bytes.
   void SendJSON(const std::string &json_str);
+
+  static void ResetGlobalObject();
 };
 
 extern DAP g_dap;

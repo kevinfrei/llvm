@@ -370,6 +370,10 @@ public:
                                            const char *value,
                                            const char *debugger_instance_name);
 
+  static lldb::SBError
+  ClearInternalVariable(const char *var_name,
+                        const char *debugger_instance_name);
+
   static lldb::SBStringList
   GetInternalVariableValue(const char *var_name,
                            const char *debugger_instance_name);

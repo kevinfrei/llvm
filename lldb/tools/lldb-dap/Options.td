@@ -51,3 +51,7 @@ def pre_init_command: S<"pre-init-command">,
 def: Separate<["-"], "c">,
   Alias<pre_init_command>,
   HelpText<"Alias for --pre-init-command">;
+
+def keep_alive: S<"keep-alive">,
+  MetaVarName<"<keep>">,
+  HelpText<"The number of milliseconds to keep lldb-dap alive after client disconnection for reusing. Zero or negative value will not keep lldb-dap alive.">;

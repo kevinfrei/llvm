@@ -1093,6 +1093,12 @@ void request_disconnect(const llvm::json::Object &request) {
   bool defaultTerminateDebuggee = g_dap.is_attach ? false : true;
   bool terminateDebuggee =
       GetBoolean(arguments, "terminateDebuggee", defaultTerminateDebuggee);
+  // Client may want to override the default keep alive timeout.
+  int timeoutInMS = GetSigned(arguments, "keepAliveTimeout", -1);
+  if (timeoutInMS >= 0) {
+    g_dap.keep_alive_timeout_ms = timeoutInMS;
+  }
+
   lldb::SBProcess process = g_dap.target.GetProcess();
   auto state = process.GetState();
   switch (state) {
@@ -1118,14 +1124,7 @@ void request_disconnect(const llvm::json::Object &request) {
   }
   SendTerminatedEvent();
   g_dap.SendJSON(llvm::json::Value(std::move(response)));
-  if (g_dap.event_thread.joinable()) {
-    g_dap.broadcaster.BroadcastEventByType(eBroadcastBitStopEventThread);
-    g_dap.event_thread.join();
-  }
-  if (g_dap.progress_event_thread.joinable()) {
-    g_dap.broadcaster.BroadcastEventByType(eBroadcastBitStopProgressThread);
-    g_dap.progress_event_thread.join();
-  }
+  g_dap.WaitWorkerThreadsToExit();
   g_dap.disconnecting = true;
 }
 
@@ -4809,6 +4808,18 @@ int main(int argc, char *argv[]) {
   for (const std::string &arg :
        input_args.getAllArgValues(OPT_pre_init_command)) {
     g_dap.pre_init_commands.push_back(arg);
+  }
+
+  if (auto *arg = input_args.getLastArg(OPT_keep_alive)) {
+    auto optarg = arg->getValue();
+    char *remainder;
+    int keep_alive_timeout_ms = strtol(optarg, &remainder, 0);
+    if (remainder == optarg || *remainder != '\0') {
+      fprintf(stderr, "'%s' is not a valid number for --keep-alive.\n", optarg);
+      return EXIT_FAILURE;
+    }
+    g_dap.keep_alive_timeout_ms =
+        keep_alive_timeout_ms > 0 ? keep_alive_timeout_ms : 0;
   }
 
   bool CleanExit = true;

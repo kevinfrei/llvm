@@ -54,11 +54,13 @@ struct StreamDescriptor {
 struct InputStream {
   StreamDescriptor descriptor;
 
-  bool read_full(std::ofstream *log, size_t length, std::string &text);
+  bool read_full(std::ofstream *log, size_t length, std::string &text,
+                 uint32_t timeoutInMS = 0);
 
   bool read_line(std::ofstream *log, std::string &line);
 
-  bool read_expected(std::ofstream *log, llvm::StringRef expected);
+  bool read_expected(std::ofstream *log, llvm::StringRef expected,
+                     uint32_t timeoutInMS = 0);
 };
 
 struct OutputStream {
