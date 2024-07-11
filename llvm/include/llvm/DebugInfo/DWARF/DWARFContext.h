@@ -72,6 +72,11 @@ public:
     virtual DWARFUnitVector &getNormalUnits() = 0;
     virtual DWARFUnitVector &getDWOUnits(bool Lazy = false) = 0;
     virtual const DWARFDebugAbbrev *getDebugAbbrevDWO() = 0;
+    virtual const DWARFDie getUnitDIE(DWARFUnit *CU,
+                                      bool ExtractUnitDIEOnly = true) = 0;
+    virtual const DWARFDie
+    getNonSkeletonUnitDIE(DWARFUnit *CU, bool ExtractUnitDIEOnly = true,
+                          StringRef DWOAlternativeLocation = {}) = 0;
     virtual const DWARFUnitIndex &getCUIndex() = 0;
     virtual const DWARFUnitIndex &getTUIndex() = 0;
     virtual DWARFGdbIndex &getGdbIndex() = 0;
@@ -82,6 +87,7 @@ public:
         getLineTableForUnit(DWARFUnit *U,
                             function_ref<void(Error)> RecoverableErrHandler) = 0;
     virtual void clearLineTableForUnit(DWARFUnit *U) = 0;
+    virtual void clearDIEs(DWARFUnit *U, bool KeepCUDie = false) = 0;
     virtual Expected<const DWARFDebugFrame *> getDebugFrame() = 0;
     virtual Expected<const DWARFDebugFrame *> getEHFrame() = 0;
     virtual const DWARFDebugMacro *getDebugMacinfo() = 0;
@@ -293,7 +299,9 @@ public:
   const DWARFUnitIndex &getCUIndex();
   DWARFGdbIndex &getGdbIndex();
   const DWARFUnitIndex &getTUIndex();
-
+  DWARFDie getUnitDIE(DWARFUnit *CU, bool ExtractUnitDIEOnly = true);
+  DWARFDie getNonSkeletonUnitDIE(DWARFUnit *CU, bool ExtractUnitDIEOnly = true,
+                                 StringRef DWOAlternativeLocation = {});
   /// Get a pointer to the parsed DebugAbbrev object.
   const DWARFDebugAbbrev *getDebugAbbrev();
 
@@ -352,6 +360,9 @@ public:
   // Clear the line table object corresponding to a compile unit for memory
   // management purpose. When it's referred to again, it'll be re-populated.
   void clearLineTableForUnit(DWARFUnit *U);
+
+  // TODO: Add a comment
+  void clearDIEs(DWARFUnit *U, bool KeepCUDie = false);
 
   DataExtractor getStringExtractor() const {
     return DataExtractor(DObj->getStrSection(), false, 0);

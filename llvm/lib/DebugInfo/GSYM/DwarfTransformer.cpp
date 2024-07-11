@@ -41,7 +41,7 @@ struct llvm::gsym::CUInfo {
     FileCache.clear();
     if (LineTable)
       FileCache.assign(LineTable->Prologue.FileNames.size() + 1, UINT32_MAX);
-    DWARFDie Die = CU->getUnitDIE();
+    DWARFDie Die = DICtx.getUnitDIE(CU);
     Language = dwarf::toUnsigned(Die.find(dwarf::DW_AT_language), 0);
     AddrSize = CU->getAddressByteSize();
   }
@@ -559,23 +559,23 @@ void DwarfTransformer::handleDie(OutputAggregator &Out, CUInfo &CUI,
 Error DwarfTransformer::convert(uint32_t NumThreads, OutputAggregator &Out) {
   size_t NumBefore = Gsym.getNumFunctionInfos();
   auto getDie = [&](DWARFUnit &DwarfUnit) -> DWARFDie {
-    DWARFDie ReturnDie = DwarfUnit.getUnitDIE(false);
+    DWARFDie ReturnDie = DICtx.getUnitDIE(&DwarfUnit, false);
     if (DwarfUnit.getDWOId()) {
-      DWARFUnit *DWOCU = DwarfUnit.getNonSkeletonUnitDIE(false).getDwarfUnit();
+      DWARFUnit *DWOCU = DICtx.getNonSkeletonUnitDIE(&DwarfUnit, false).getDwarfUnit();
       if (!DWOCU->isDWOUnit())
         Out.Report(
             "warning: Unable to retrieve DWO .debug_info section for some "
             "object files. (Remove the --quiet flag for full output)",
             [&](raw_ostream &OS) {
               std::string DWOName = dwarf::toString(
-                  DwarfUnit.getUnitDIE().find(
+                  DICtx.getUnitDIE(&DwarfUnit).find(
                       {dwarf::DW_AT_dwo_name, dwarf::DW_AT_GNU_dwo_name}),
                   "");
               OS << "warning: Unable to retrieve DWO .debug_info section for "
                  << DWOName << "\n";
             });
       else {
-        ReturnDie = DWOCU->getUnitDIE(false);
+        ReturnDie = DICtx.getUnitDIE(DWOCU, false);
       }
     }
     return ReturnDie;
@@ -591,7 +591,7 @@ Error DwarfTransformer::convert(uint32_t NumThreads, OutputAggregator &Out) {
       DICtx.clearLineTableForUnit(CU.get());
       // Free any DIEs that were allocated by the DWARF parser.
       // If/when they're needed by other CU's, they'll be recreated.
-      CU->clearDIEs(/*KeepCUDie=*/false);
+      DICtx.clearDIEs(CU.get(), /*KeepCUDie=*/false);
     }
   } else {
     // LLVM Dwarf parser is not thread-safe and we need to parse all DWARF up
@@ -608,7 +608,7 @@ Error DwarfTransformer::convert(uint32_t NumThreads, OutputAggregator &Out) {
     // thread pool.
     DefaultThreadPool pool(hardware_concurrency(NumThreads));
     for (const auto &CU : DICtx.compile_units())
-      pool.async([&CU]() { CU->getUnitDIE(false /*CUDieOnly*/); });
+      pool.async([this, &CU]() { DICtx.getUnitDIE(CU.get(), false /*CUDieOnly*/); });
     pool.wait();
 
     // Now convert all DWARF to GSYM in a thread pool.
@@ -626,7 +626,7 @@ Error DwarfTransformer::convert(uint32_t NumThreads, OutputAggregator &Out) {
           DICtx.clearLineTableForUnit(CU.get());
           // Free any DIEs that were allocated by the DWARF parser.
           // If/when they're needed by other CU's, they'll be recreated.
-          CU->clearDIEs(/*KeepCUDie=*/false);
+          DICtx.clearDIEs(CU.get(), /*KeepCUDie=*/false);
           // Print ThreadLogStorage lines into an actual stream under a lock
           std::lock_guard<std::mutex> guard(LogMutex);
           if (Out.GetOS()) {
@@ -641,7 +641,7 @@ Error DwarfTransformer::convert(uint32_t NumThreads, OutputAggregator &Out) {
   }
   // Now get rid of all the DIEs that may have been recreated
   for (const auto &CU : DICtx.compile_units())
-    CU->clearDIEs(/*KeepCUDie=*/false);
+    DICtx.clearDIEs(CU.get(), /*KeepCUDie=*/false);
   size_t FunctionsAddedCount = Gsym.getNumFunctionInfos() - NumBefore;
   Out << "Loaded " << FunctionsAddedCount << " functions from DWARF.\n";
   return Error::success();
