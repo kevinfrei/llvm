@@ -316,6 +316,18 @@ public:
     return DWOUnits;
   }
 
+  const DWARFDie getUnitDIE(DWARFUnit *CU,
+                            bool ExtractUnitDIEOnly = true) override {
+    return CU->getUnitDIE(ExtractUnitDIEOnly);
+  }
+
+  const DWARFDie
+  getNonSkeletonUnitDIE(DWARFUnit *CU, bool ExtractUnitDIEOnly = true,
+                        StringRef DWOAlternativeLocation = {}) override {
+    return CU->getNonSkeletonUnitDIE(ExtractUnitDIEOnly,
+                                     DWOAlternativeLocation);
+  }
+
   const DWARFDebugAbbrev *getDebugAbbrevDWO() override {
     if (AbbrevDWO)
       return AbbrevDWO.get();
@@ -439,6 +451,10 @@ public:
 
     uint64_t stmtOffset = *Offset + U->getLineTableOffset();
     Line->clearLineTable(stmtOffset);
+  }
+
+  void clearDIEs(DWARFUnit *U, bool KeepCUDie = false) override {
+    U->clearDIEs(KeepCUDie);
   }
 
   Expected<const DWARFDebugFrame *> getDebugFrame() override {
@@ -645,6 +661,19 @@ public:
     // will cause problems in a multi-threaded environment.
     return ThreadUnsafeDWARFContextState::getDWOUnits(false);
   }
+  const DWARFDie getUnitDIE(DWARFUnit *CU,
+                            bool ExtractUnitDIEOnly = true) override {
+    std::unique_lock<std::recursive_mutex> LockGuard(Mutex);
+    return ThreadUnsafeDWARFContextState::getUnitDIE(CU, ExtractUnitDIEOnly);
+  }
+  const DWARFDie
+  getNonSkeletonUnitDIE(DWARFUnit *CU, bool ExtractUnitDIEOnly = true,
+                        StringRef DWOAlternativeLocation = {}) override {
+    std::unique_lock<std::recursive_mutex> LockGuard(Mutex);
+    return ThreadUnsafeDWARFContextState::getNonSkeletonUnitDIE(
+        CU, ExtractUnitDIEOnly, DWOAlternativeLocation);
+  }
+
   const DWARFUnitIndex &getCUIndex() override {
     std::unique_lock<std::recursive_mutex> LockGuard(Mutex);
     return ThreadUnsafeDWARFContextState::getCUIndex();
@@ -682,6 +711,10 @@ public:
   void clearLineTableForUnit(DWARFUnit *U) override {
     std::unique_lock<std::recursive_mutex> LockGuard(Mutex);
     return ThreadUnsafeDWARFContextState::clearLineTableForUnit(U);
+  }
+  void clearDIEs(DWARFUnit *U, bool KeepCUDie = false) override {
+    std::unique_lock<std::recursive_mutex> LockGuard(Mutex);
+    return ThreadUnsafeDWARFContextState::clearDIEs(U, KeepCUDie);
   }
   Expected<const DWARFDebugFrame *> getDebugFrame() override {
     std::unique_lock<std::recursive_mutex> LockGuard(Mutex);
@@ -1421,6 +1454,18 @@ const DWARFUnitIndex &DWARFContext::getTUIndex() {
   return State->getTUIndex();
 }
 
+DWARFDie DWARFContext::getUnitDIE(DWARFUnit *CU, bool ExtractUnitDIEOnly) {
+  return State->getUnitDIE(CU, ExtractUnitDIEOnly);
+}
+
+DWARFDie
+DWARFContext::getNonSkeletonUnitDIE(DWARFUnit *CU,
+                                    bool ExtractUnitDIEOnly,
+                                    StringRef DWOAlternativeLocation) {
+  return State->getNonSkeletonUnitDIE(CU, ExtractUnitDIEOnly,
+                                      DWOAlternativeLocation);
+}
+
 DWARFGdbIndex &DWARFContext::getGdbIndex() {
   return State->getGdbIndex();
 }
@@ -1504,6 +1549,10 @@ Expected<const DWARFDebugLine::LineTable *> DWARFContext::getLineTableForUnit(
 
 void DWARFContext::clearLineTableForUnit(DWARFUnit *U) {
   return State->clearLineTableForUnit(U);
+}
+
+void DWARFContext::clearDIEs(DWARFUnit *U, bool KeepCUDie) {
+  State->clearDIEs(U, KeepCUDie);
 }
 
 DWARFUnitVector &DWARFContext::getDWOUnits(bool Lazy) {
