@@ -47,6 +47,14 @@ public:
   static std::optional<FileSpec>
   LocateExecutableSymbolFile(const ModuleSpec &module_spec,
                              const FileSpecList &default_search_paths);
+
+  // Download the object and symbol files given a module specification.
+  //
+  // This will be done asynchronously, and is controlled by the
+  // plugin.symbol-locator.debuginfod.lookup_mode setting.
+  static bool DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
+                                          Status &error, bool sync_lookup,
+                                          bool copy_executable);
 };
 
 } // namespace lldb_private
