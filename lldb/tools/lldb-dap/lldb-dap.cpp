@@ -2885,6 +2885,7 @@ void request_setFunctionBreakpoints(const llvm::json::Object &request) {
   FillResponse(request, response);
   auto arguments = request.getObject("arguments");
   auto breakpoints = arguments->getArray("breakpoints");
+  const bool focus_thread = GetBoolean(arguments, "focusThread", false);
   FunctionBreakpointMap request_bps;
   llvm::json::Array response_breakpoints;
   for (const auto &value : *breakpoints) {
@@ -2927,6 +2928,9 @@ void request_setFunctionBreakpoints(const llvm::json::Object &request) {
     g_dap.function_breakpoints[pair.first()] = std::move(pair.second);
     FunctionBreakpoint &new_bp = g_dap.function_breakpoints[pair.first()];
     new_bp.SetBreakpoint();
+    // LLDB_INVALID_THREAD_ID will set breakpoint for all thread
+    if (focus_thread && g_dap.focus_tid != LLDB_INVALID_THREAD_ID)
+      new_bp.bp.SetThreadID(g_dap.focus_tid);
     AppendBreakpoint(&new_bp, response_breakpoints);
   }
 
