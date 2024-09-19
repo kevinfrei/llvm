@@ -186,6 +186,11 @@ protected:
   MCSection *MergeableConst16Section = nullptr;
   MCSection *MergeableConst32Section = nullptr;
 
+  // facebook begin T169912720
+  /// A flag indicating whether the debug info has unique 32-bit offsets for strings
+  MCSection *MetaInfoSection = nullptr;
+  // facebook end T169912720
+
   // MachO specific sections.
 
   /// Section for thread local structure information.
@@ -323,6 +328,11 @@ public:
   MCSection *getDwarfStrOffDWOSection() const { return DwarfStrOffDWOSection; }
   MCSection *getDwarfStrOffSection() const { return DwarfStrOffSection; }
   MCSection *getDwarfAddrSection() const { return DwarfAddrSection; }
+
+  // facebook begin T169912720
+  MCSection *getMetaInfoSection() const { return MetaInfoSection; }
+  // facebook end T169912720  
+
   MCSection *getDwarfRnglistsDWOSection() const {
     return DwarfRnglistsDWOSection;
   }

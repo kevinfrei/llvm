@@ -495,6 +495,10 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
   DwarfRnglistsSection = Ctx->getELFSection(".debug_rnglists", DebugSecType, 0);
   DwarfLoclistsSection = Ctx->getELFSection(".debug_loclists", DebugSecType, 0);
 
+  // facebook begin T169912720
+  MetaInfoSection = Ctx->getELFSection(".note.meta.debuginfo", DebugSecType, 0);
+  // facebook end T169912720
+
   // Fission Sections
   DwarfInfoDWOSection =
       Ctx->getELFSection(".debug_info.dwo", DebugSecType, ELF::SHF_EXCLUDE);

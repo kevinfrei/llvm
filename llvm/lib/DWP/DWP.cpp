@@ -941,6 +941,12 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs,
   writeIndex(Out, MCOFI.getDwarfCUIndexSection(), ContributionOffsets,
              IndexEntries, IndexVersion);
 
+  // facebook begin T169912720
+  // Write the meta info section.
+  Out.switchSection(MCOFI.getMetaInfoSection());
+  Out.emitBytes("{\"debug-str-32-bit-overflow\":true}");
+  // facebook end T169912720
+
   return Error::success();
 }
 } // namespace llvm

@@ -619,6 +619,21 @@ Expected<const char *> DWARFFormValue::getAsCString() const {
   DataExtractor StrData =
       IsDebugLineString ? C->getLineStringExtractor()
                         : U ? U->getStringExtractor() : C->getStringExtractor();
+  // facebook begin T169912720
+  if (Offset > 0) {
+    // Use the null-terminator of the previous string to verify that Offset
+    // points at the beginning of a string.
+    // Otherwise, we assume Offset was larger than 4Gi and got truncated
+    // to 32-bits. So we lookup for another string starting beyond the 4Gi.
+    uint64_t NullTermOffset = Offset - 1;
+    while (StrData.isValidOffset(NullTermOffset) &&
+           StrData.getU8(&NullTermOffset) != '\0') {
+      NullTermOffset += 0xFFFFFFFFULL;
+    }
+    if (StrData.isValidOffset(NullTermOffset))
+      Offset = NullTermOffset;
+  }
+  // facebook end T169912720
   if (const char *Str = StrData.getCStr(&Offset))
     return Str;
   std::string Msg = FormEncodingString(Form).str();
