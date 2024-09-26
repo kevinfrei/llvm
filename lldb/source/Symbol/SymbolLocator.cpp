@@ -18,9 +18,14 @@
 using namespace lldb;
 using namespace lldb_private;
 
+namespace {
+
+llvm::SmallSet<UUID, 8> g_seen_uuids;
+static std::mutex g_mutex;
+
+} // namespace
+
 void SymbolLocator::DownloadSymbolFileAsync(const UUID &uuid) {
-  static llvm::SmallSet<UUID, 8> g_seen_uuids;
-  static std::mutex g_mutex;
 
   auto lookup = [=]() {
     {
@@ -54,4 +59,9 @@ void SymbolLocator::DownloadSymbolFileAsync(const UUID &uuid) {
     lookup();
     break;
   };
+}
+
+void SymbolLocator::ResetDownloadAttempts() {
+  std::lock_guard<std::mutex> guard(g_mutex);
+  g_seen_uuids.clear();
 }
